@@ -1,0 +1,117 @@
+Task 1: Problem Analysis and Objects
+
+1. Inputs and outputs
+	Details
+Inputs on entry	Registration number, vehicle type (two-wheeler, car, EV, or later types), user category (student, staff, visitor), pass details if any, whether an EV wants a charging slot, entry time
+Inputs on exit	Ticket number (or registration number), exit time, kWh consumed if the EV was charged
+Outputs on entry	An allocated slot (floor and slot number) and a parking ticket with a unique ticket number and entry time, or a “facility full” / “no suitable slot” message
+Outputs on exit	The slot released, the duration, the parking fee (zero for a valid pass), the charging fee if any, and the total
+Reports	Current occupancy, free slots per floor, total collection for the day
+
+  
+2. Nouns to candidate classes, verbs to methods
+Noun	Class?	Why it is needed
+Vehicle (two-wheeler, car, EV)	Vehicle (abstract) with TwoWheeler, Car, ElectricCar	Types differ in rate and capabilities (charging), so each type’s data and behaviour belongs together.
+Slot	ParkingSlot	A slot has its own state (number, type, occupant) and rules (it cannot hold two vehicles).
+Ticket	ParkingTicket	It records a parking event (ticket number, vehicle, slot, entry and exit time) and must outlive the entry operation until exit.
+Facility / floors	ParkingFacility	It coordinates allocation and release, and owns the floors and slots.
+Student / staff / visitor	UserCategory (or user subclasses)	The pricing rule depends on who the user is, not just the vehicle.
+Monthly pass	MonthlyPass	It has its own validity dates and an isValidOn(date) check.
+
+Candidates I considered and rejected:
+
+Floor: it only wraps an array of slots and has no behaviour of its own, so a jagged array inside ParkingFacility is enough.
+Receipt: it is just the formatted output of a ticket, so a printReceipt() method covers it.
+Gate: it would only matter if north and south gates had different behaviour, which isn’t required.
+
+Showing that you rejected candidates and explained why is what the “justify, don’t just list” instruction asks for.
+
+Verb	Method	Belongs to
+enters, allocate	allocate(vehicle)	ParkingFacility
+issue ticket	issueTicket(...)	ParkingFacility (creates a ParkingTicket)
+leaves, release	release(floor, slot) / exit(ticketNo)	ParkingFacility
+compute fee	calculateFee(minutes)	Vehicle (overridden by type)
+check pass	isValidOn(date)	MonthlyPass
+charge EV	chargingFee(kWh)	Chargeable (implemented by ElectricCar)
+check free	isFree()	ParkingSlot
+
+  
+3. Responsibilities
+Vehicle hierarchy: holds the registration number and knows its own hourly rate and fee calculation. It does not know about slots or tickets.
+ParkingSlot: knows its position, kind (regular or charging) and occupant, and refuses a second vehicle.
+ParkingTicket: holds a unique ticket number, vehicle, slot, entry time and exit time. It is immutable once issued, except for the exit time.
+ParkingFacility: finds a suitable free slot, issues tickets, releases slots and reports occupancy. It delegates fee logic to the vehicle.
+MonthlyPass / UserCategory: decide whether the fee is waived.
+
+This follows the single-responsibility principle. If the fee rules change, only the vehicle classes change, and if the slot layout changes, only the facility does.
+
+  
+4. Business rules
+A slot can hold at most one vehicle at a time.
+A vehicle cannot be parked twice at once, so the registration number must be unique among active tickets.
+Ticket numbers are unique and never reused, even after the ticket is closed.
+A ticket is issued only if a suitable slot was allocated.
+Only an occupied slot can be released, and slot positions must be valid (floor and slot within bounds).
+Exit time must not be before entry time.
+Every started hour is charged in full, so 61 minutes is billed as 2 hours.
+Staff and students with a valid monthly pass pay no parking fee. An expired pass or a visitor pays the full fee.
+Only EVs can use charging slots, and charging is billed separately by kWh.
+A non-EV may not take a charging slot.
+
+  
+5. Assumptions
+Vehicle types are two-wheeler, car and EV, and slots are numbered from 0 within each floor.
+The entry time is taken from the system clock or supplied as input, and times fall within one day for the basic version.
+Allocation is first-free (lowest floor, then lowest slot), and a vehicle that can’t be placed is turned away.
+A ticket is not reissued after exit, and a lost ticket is looked up by registration number.
+Pass validity is checked against the entry date.
+The facility size is fixed at construction.
+
+  
+6. Alternative concept: parallel arrays of Strings
+java
+// Parallel-array design
+String[] regNo     = new String[MAX];
+String[] type      = new String[MAX];
+String[] entryTime = new String[MAX];
+int count = 0;
+
+// Add
+regNo[count] = "TN01AB1111"; type[count] = "car"; entryTime[count] = "09:30"; count++;
+
+// Find by registration number
+int find(String r) {
+    for (int i = 0; i < count; i++)
+        if (regNo[i].equals(r)) return i;
+    return -1;
+}
+java
+// Object design
+Vehicle[] vehicles = new Vehicle[MAX];
+Vehicle find(String r) {
+    for (int i = 0; i < count; i++)
+        if (vehicles[i].getRegNo().equals(r)) return vehicles[i];
+    return null;
+}
+Aspect	Parallel arrays	Vehicle objects
+Search by reg no	Linear scan, O(n) comparisons	Linear scan, O(n) comparisons (same, with an extra getRegNo() call)
+Add an attribute (e.g. owner)	Add a new array and update every insert, delete and shift so indices stay aligned. Miss one and the data silently corrupts.	Add one field and a getter to the class. Other code is untouched.
+Type safety	type[] is a free String (“car” vs “Car” vs “cr”), and entry time as a String can’t be computed on directly	Types are checked by the compiler, and behaviour (calculateFee) can live with the data
+Per-vehicle space	3 references, about 12 bytes with compressed pointers, plus the Strings themselves	1 reference plus an object header and 3 fields, roughly 12 to 16 bytes more per vehicle
+
+Complexity:
+
+Searching is O(n) in both designs, or O(n·L) if you count string comparison cost for registration numbers of length L. The design alone doesn’t change this. Fast lookup needs a different structure, such as a HashMap, covered in Task 11.
+Space per vehicle is O(1) in both designs, and O(n) in total. Objects pay a small constant overhead for the object header, and in return you get safety, encapsulation and polymorphism. The byte figures are approximate for a 64-bit JVM with compressed pointers and depend on your JVM.
+Adding an attribute costs O(1) design effort with objects, but with parallel arrays it touches every place that keeps the arrays in sync, so effort grows with code size and the risk of misalignment is high.
+
+Conclusion to write: the objects cost a few extra bytes per vehicle but give the same search time, safer changes, and a natural home for behaviour such as fee calculation, which is why the object design is retained.
+
+  
+7. Evidence checklist for your report
+ Inputs/outputs table
+ Noun/verb table, plus the rejected candidates
+ Responsibilities per class
+ Business rules (numbered)
+ Assumptions
+ Alternative concept with code, comparison table and Big-O
