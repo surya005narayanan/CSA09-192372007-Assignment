@@ -25,7 +25,7 @@ public class Task01_ProblemAnalysisDemo {
     public static void main(String[] args) {
         System.out.println("================================================================================");
         System.out.println("   SIMATS ENGINEERING - TASK 1: PROBLEM ANALYSIS & OBJECT MODEL VALIDATION     ");
-        System.out.println("   Student: P. Madesh  |  Register No: 192365007  |  Java: 25.0.2             ");
+        System.out.println("   Student: Surya Narayanan Muthu Kumar  |  Register No: 192372007  |  Java: 25.0.2             ");
         System.out.println("================================================================================\n");
 
         // 1. Object-Oriented Collection
